@@ -1,4 +1,4 @@
-import React from 'react';
+// React import not needed with TSX auto JSX runtime
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';

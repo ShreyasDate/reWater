@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import { Button } from './ui/button';
@@ -6,7 +6,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { Progress } from './ui/progress';
 import Navigation from './Navigation';
 import GlassCard from './GlassCard';
-import { ChevronDown, Play, FileCheck, Droplets, Activity, Zap, TrendingUp } from 'lucide-react';
+import { Play, FileCheck, Droplets, Activity, Zap, TrendingUp } from 'lucide-react';
 
 interface TryDemoPageProps {
   onNavigateToHome: () => void;

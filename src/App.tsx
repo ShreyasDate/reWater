@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import  { useState } from 'react';
 import { motion } from 'motion/react';
 import { Toaster } from './components/ui/sonner';
 import LandingPage from './components/LandingPage';
