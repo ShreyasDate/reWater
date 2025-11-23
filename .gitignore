@@ -180,7 +180,7 @@ ML Service
 
 ml/venv/
 ml/pycache/
-ml/models_v1/
+# ml/models_v1/
 ml/.csv
 ml/.ipynb_checkpoints/
 ml/.log
