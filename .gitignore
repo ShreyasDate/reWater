@@ -176,4 +176,15 @@ backend/dist/
 
 Frontend specific (Vite build output)
 
-frontend/dist/
+ML Service
+
+ml/venv/
+ml/pycache/
+ml/models_v1/
+ml/.csv
+ml/.ipynb_checkpoints/
+ml/.log
+
+Optional: Ignore the entire ML folder if you want to manage it separately
+
+ml/

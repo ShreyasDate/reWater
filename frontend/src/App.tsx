@@ -28,16 +28,12 @@ export default function App() {
           });
           // If successful, user is authenticated
           setUser(res.data.user);
-          // Don't auto-redirect to dashboard here if user wants to see landing, 
-          // but usually on refresh, staying on dashboard is preferred.
-          // For now, let's stay on 'landing' initially unless we want auto-redirect.
-          // EDIT: Let's auto-redirect if token is valid for seamless experience.
+          // Auto-redirect to dashboard for seamless experience
           setView('dashboard');
         } catch (error) {
           console.error("Session expired", error);
           localStorage.removeItem("token");
-          // Stay on landing or signin? Landing is less intrusive.
-          setView('landing'); 
+          setView('landing');
         }
       }
     };
@@ -49,12 +45,12 @@ export default function App() {
   const handleSignIn = async (email: string, password: string) => {
     try {
       const res = await axios.post(`${BACKEND_URL}/signin`, { email, password });
-      
+
       localStorage.setItem("token", res.data.token);
       setUser(res.data.user);
       setView('dashboard');
       toast.success("Welcome back! Signed in successfully.");
-      
+
     } catch (error: any) {
       const message = error.response?.data?.message || "Something went wrong.";
       toast.error(message);
@@ -64,10 +60,10 @@ export default function App() {
   const handleSignUp = async (name: string, email: string, password: string) => {
     try {
       await axios.post(`${BACKEND_URL}/signup`, { name, email, password });
-      
+
       toast.success("Account created! Please sign in.");
       setView('signin');
-      
+
     } catch (error: any) {
       const message = error.response?.data?.message || "Signup failed.";
       toast.error(message);
@@ -95,28 +91,28 @@ export default function App() {
     <ThemeProvider>
       <div className="min-h-screen text-foreground overflow-x-hidden font-sans selection:bg-cyan-500/30 flex flex-col">
         <Background />
-        
-        <Navbar 
-          setView={handleSetView} 
-          currentView={view} 
-          isLoggedIn={!!user} 
+
+        <Navbar
+          setView={handleSetView}
+          currentView={view}
+          isLoggedIn={!!user}
           onLogout={handleLogout}
         />
-        
+
         <div className="grow">
           {view === 'landing' && <Landing setView={handleSetView} />}
-          
+
           {view === 'signin' && (
-            <SignIn 
-              setView={handleSetView} 
-              onSignIn={handleSignIn} 
+            <SignIn
+              setView={handleSetView}
+              onSignIn={handleSignIn}
             />
           )}
-          
+
           {view === 'signup' && (
-            <SignUp 
-              setView={handleSetView} 
-              onSignUp={handleSignUp} 
+            <SignUp
+              setView={handleSetView}
+              onSignUp={handleSignUp}
             />
           )}
 

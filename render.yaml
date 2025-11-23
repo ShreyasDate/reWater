@@ -1,0 +1,30 @@
+services:
+  # Existing Backend Service (Node.js)
+  - type: web
+    name: edubotx-backend
+    env: node
+    rootDir: backend
+    buildCommand: npm install -g pnpm && pnpm install && pnpm run build
+    startCommand: node dist/index.js
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+      - key: PNPM_VERSION
+        value: 9.0.0
+      - key: MONGO_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+
+  # New ML Service (Python)
+  - type: web
+    name: edubotx-ml
+    env: python
+    rootDir: ml
+    # Install dependencies
+    buildCommand: pip install -r requirements.txt
+    # Run the Uvicorn server
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.0

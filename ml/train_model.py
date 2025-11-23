@@ -17,145 +17,117 @@ np.random.seed(RND)
 # Load dataset
 df = pd.read_csv("updated_wastewater_dataset.csv")
 print("Rows, cols:", df.shape)
+print("Columns:", df.columns.tolist())
+
+# --- FIX: Handle missing effluent columns for classification ---
+# If effluent_TSS or effluent_COD are missing from CSV, estimate them from influent values
+# assuming typical treatment efficiency (e.g., 90% removal for TSS, 85% for COD)
+if 'effluent_TSS' not in df.columns:
+    print("⚠️ 'effluent_TSS' not found. Estimating from 'influent_TSS' (assuming 90% removal).")
+    # If influent_TSS is also missing, use a default low value or 0
+    if 'influent_TSS' in df.columns:
+        df['effluent_TSS'] = df['influent_TSS'] * 0.1
+    else:
+        df['effluent_TSS'] = 0.0
+
+if 'effluent_COD' not in df.columns:
+    print("⚠️ 'effluent_COD' not found. Estimating from 'influent_COD' (assuming 85% removal).")
+    if 'influent_COD' in df.columns:
+        df['effluent_COD'] = df['influent_COD'] * 0.1
+    else:
+        df['effluent_COD'] = 0.0
+
+if 'effluent_pH' not in df.columns:
+    print("⚠️ 'effluent_pH' not found. Using 'influent_pH' as proxy.")
+    if 'influent_pH' in df.columns:
+        df['effluent_pH'] = df['influent_pH']
+    else:
+        df['effluent_pH'] = 7.0
 
 # Define reusability classes based on WHO/EPA guidelines for water reuse
 def classify_reusability(row):
-    bod = row['effluent_BOD']
-    cod = row.get('effluent_COD', row['influent_COD'])  # Use influent_COD if effluent_COD not available
-    tss = row['effluent_TSS']
-    ph = row['effluent_pH']
-    tds = row['influent_TDS']
+    bod = row.get('effluent_BOD', 0) # Default to 0 if missing
+    cod = row.get('effluent_COD', 0)
+    tss = row.get('effluent_TSS', 0)
+    ph = row.get('effluent_pH', 7)
+    tds = row.get('influent_TDS', 0) # Using influent TDS as proxy if effluent TDS missing
 
     # Drinking or Fresh Water: Strictest standards
     if bod < 5 and cod < 10 and tss < 1 and 6.5 <= ph <= 8.5 and tds < 500:
-        return 'drinking or fresh water'
+        return 'drinking'
     # Industrial High: High quality for sensitive industrial processes
-    elif bod < 30 and cod < 75 and tss < 10 and 6 <= ph <= 9 and tds < 1000:
+    elif bod < 30 and cod < 75 and tss < 5:
         return 'industrial_high'
-    # Industrial Low: Lower quality for general industrial use
-    elif bod < 100 and cod < 250 and tss < 50 and 6 <= ph <= 9 and tds < 2000:
+    # Industrial Low: Cooling towers, washing, etc.
+    elif bod < 50 and cod < 150 and tss < 20:
         return 'industrial_low'
-    # Cooling Tower: For cooling systems
-    elif bod < 50 and cod < 150 and tss < 30 and 6.5 <= ph <= 8.5 and tds < 1500:
-        return 'cooling_tower'
-    # Toilet Flushing: For non-potable uses
-    elif bod < 30 and cod < 100 and tss < 30 and 6 <= ph <= 9 and tds < 1000:
-        return 'toilet_flushing'
-    # Irrigation: For agricultural irrigation
-    elif bod < 30 and cod < 100 and tss < 50 and 6 <= ph <= 9 and tds < 2000:
+    # Irrigation: Agriculture/Landscape
+    elif bod < 100 and cod < 250 and tss < 50:
         return 'irrigation'
-    # Agriculture: Similar to irrigation but slightly more lenient
-    elif bod < 50 and cod < 150 and tss < 100 and 6 <= ph <= 9 and tds < 2000:
-        return 'agriculture'
-    # Landscaping: For landscape irrigation
-    elif bod < 50 and cod < 150 and tss < 100 and 6 <= ph <= 9 and tds < 2000:
-        return 'landscaping'
-    # Construction: For construction site use
-    elif bod < 100 and cod < 250 and tss < 100 and 6 <= ph <= 9 and tds < 2000:
-        return 'construction'
+    # Not Reusable
     else:
         return 'not_reusable'
 
-df['reusability'] = df.apply(classify_reusability, axis=1)
-print("Reusability distribution:")
-print(df['reusability'].value_counts())
+df['reusability_class'] = df.apply(classify_reusability, axis=1)
+print("\nClass Distribution:\n", df['reusability_class'].value_counts())
 
-# Basic cleaning
-def basic_clean(df):
-    df = df.copy()
-    numeric_cols = [
-        "influent_BOD","influent_COD","influent_TSS","influent_pH","influent_TDS",
-        "flow_rate","aeration_rate","chemical_dose","sludge_recycle_rate","retention_time","temperature",
-        "effluent_BOD","effluent_COD","effluent_TSS","effluent_pH"
-    ]
-    for c in numeric_cols:
-        if c not in df.columns:
-            df[c] = np.nan
-    df = df.drop_duplicates().sort_values('timestamp').reset_index(drop=True)
-    df[numeric_cols] = df[numeric_cols].interpolate(limit_direction='both', axis=0)
-    return df
-
-df = basic_clean(df)
-
-# Feature engineering
-def feature_engineer(df):
-    df = df.copy()
-    df['influent_BOD_roll24'] = df['influent_BOD'].rolling(window=24, min_periods=1).mean()
-    df['dose_per_m3'] = df['chemical_dose'] / (df['flow_rate'].replace(0, np.nan))
-    df['dose_per_m3'] = df['dose_per_m3'].fillna(0)
-    df['effluent_BOD_lag1'] = df['effluent_BOD'].shift(1).fillna(method='bfill')
-    df['hour'] = 12  # dummy
-    df['dayofweek'] = 1  # dummy
-    df['month'] = 6  # dummy
-    return df
-
-df = feature_engineer(df)
-
-FEATURES = [
-    "flow_rate", "influent_BOD", "influent_COD", "influent_TSS", "influent_pH", "influent_TDS",
-    "aeration_rate", "chemical_dose", "sludge_recycle_rate", "retention_time", "temperature",
-    "influent_BOD_roll24", "dose_per_m3", "effluent_BOD_lag1"
+# --- Feature Selection ---
+# Use strictly the features available in input
+features = [
+    'flow_rate', 'influent_BOD', 'influent_COD', 'influent_TSS', 'influent_pH', 'influent_TDS',
+    'aeration_rate', 'chemical_dose', 'sludge_recycle_rate', 'retention_time', 'temperature',
+    'influent_BOD_roll24', 'dose_per_m3', 'effluent_BOD_lag1'
 ]
-TARGET = "reusability"
 
-for f in FEATURES:
-    if f not in df.columns:
-        df[f] = np.nan
+# Create derived features if they don't exist in CSV
+if 'dose_per_m3' not in df.columns:
+    # Avoid division by zero
+    df['dose_per_m3'] = df.apply(lambda x: x['chemical_dose'] / x['flow_rate'] if x['flow_rate'] > 0 else 0, axis=1)
 
-df_model = df.dropna(subset=[TARGET]).reset_index(drop=True)
-print("Rows available for modeling:", len(df_model))
+# For influent_BOD_roll24, if strictly not present, use influent_BOD
+if 'influent_BOD_roll24' not in df.columns:
+    if 'influent_BOD' in df.columns:
+        df['influent_BOD_roll24'] = df['influent_BOD']
+    else:
+        df['influent_BOD_roll24'] = 0.0
 
-# Train/test split
-split_idx = int(len(df_model) * 0.8)
-train_df = df_model.iloc[:split_idx].copy()
-test_df = df_model.iloc[split_idx:].copy()
-print("Train rows:", len(train_df), "Test rows:", len(test_df))
+X = df[features]
+y = df['reusability_class']
+
+# Split
+X_train_raw, X_test_raw, y_train_raw, y_test_raw = train_test_split(X, y, test_size=0.2, random_state=RND)
 
 # Preprocessing
 imputer = SimpleImputer(strategy='median')
-scaler = StandardScaler()
-label_encoder = LabelEncoder()
-
-X_train_raw = train_df[FEATURES]
-X_test_raw = test_df[FEATURES]
-
-imputer.fit(X_train_raw)
-X_train_imp = imputer.transform(X_train_raw)
+X_train_imp = imputer.fit_transform(X_train_raw)
 X_test_imp = imputer.transform(X_test_raw)
 
-scaler.fit(X_train_imp)
-X_train = scaler.transform(X_train_imp)
+scaler = StandardScaler()
+X_train = scaler.fit_transform(X_train_imp)
 X_test = scaler.transform(X_test_imp)
 
-y_train_raw = train_df[TARGET]
-y_test_raw = test_df[TARGET]
-label_encoder.fit(y_train_raw)
-y_train = label_encoder.transform(y_train_raw)
+label_encoder = LabelEncoder()
+y_train = label_encoder.fit_transform(y_train_raw)
 y_test = label_encoder.transform(y_test_raw)
 
 print("Classes:", label_encoder.classes_)
 
 # Train model
 model = xgb.XGBClassifier(
-    n_estimators=500,
+    n_estimators=100,
     max_depth=6,
-    learning_rate=0.05,
-    subsample=0.8,
-    colsample_bytree=0.8,
+    learning_rate=0.1,
     random_state=RND,
-    n_jobs=-1,
     objective='multi:softprob',
     num_class=len(label_encoder.classes_)
 )
 
-model.fit(X_train, y_train, eval_set=[(X_test, y_test)], verbose=50)
+model.fit(X_train, y_train)
 
 # Evaluate
 y_pred = model.predict(X_test)
 accuracy = accuracy_score(y_test, y_pred)
 print(f"Test Accuracy: {accuracy:.3f}")
-print("Classification Report:")
-print(classification_report(y_test, y_pred, target_names=label_encoder.classes_))
 
 # Save artifacts
 ARTIFACT_DIR = "models_v1"
@@ -164,16 +136,7 @@ os.makedirs(ARTIFACT_DIR, exist_ok=True)
 joblib.dump(model, os.path.join(ARTIFACT_DIR, "model.joblib"))
 joblib.dump(imputer, os.path.join(ARTIFACT_DIR, "imputer.joblib"))
 joblib.dump(scaler, os.path.join(ARTIFACT_DIR, "scaler.joblib"))
-joblib.dump(FEATURES, os.path.join(ARTIFACT_DIR, "features.joblib"))
 joblib.dump(label_encoder, os.path.join(ARTIFACT_DIR, "label_encoder.joblib"))
+joblib.dump(features, os.path.join(ARTIFACT_DIR, "features.joblib"))
 
-meta = {
-    "accuracy": float(accuracy),
-    "train_rows": int(len(train_df)),
-    "test_rows": int(len(test_df)),
-    "classes": list(label_encoder.classes_),
-    "trained_at": pd.Timestamp.now().isoformat()
-}
-joblib.dump(meta, os.path.join(ARTIFACT_DIR, "meta.joblib"))
-
-print("Artifacts saved to", ARTIFACT_DIR)
+print("✅ Artifacts saved to", ARTIFACT_DIR)
